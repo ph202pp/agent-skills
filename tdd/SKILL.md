@@ -147,11 +147,12 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 6. BLUE is for refactoring only -- no new behavior
 7. Run tests after every phase transition; run the FULL suite in BLUE
 8. **BLUE is a HARD STOP (supervised mode)** -- present results and STOP. Do not commit or start the next cycle until the user explicitly says to proceed
-9. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
-10. Architectural decisions belong in Cycle 0, not discovered mid-implementation
-11. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
-12. Test descriptions are specifications -- write them for someone who has never seen the code
-13. Commit messages reference the cycle: `feat(scope): description [cycle N]`
+9. **NEVER start the next cycle's RED before the current cycle is committed** -- uncommitted work must be committed first. No exceptions.
+10. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
+11. Architectural decisions belong in Cycle 0, not discovered mid-implementation
+12. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
+13. Test descriptions are specifications -- write them for someone who has never seen the code
+14. Commit messages reference the cycle: `feat(scope): description [cycle N]`
 
 ## Anti-Patterns
 
@@ -163,6 +164,7 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 - Skipping the REVIEW loop -- go back to RED/ORANGE, don't sneak tests into GREEN
 - **Presenting the REVIEW test tree and immediately proceeding to GREEN in the same turn** -- REVIEW requires a HARD STOP; the user must respond before GREEN begins
 - **Completing BLUE and immediately starting the next cycle's RED** -- in supervised mode, each cycle boundary requires user approval before continuing
+- **Starting the next cycle's RED with uncommitted changes from the previous cycle** -- always commit before moving on; uncommitted work is invisible to future diffs and reviews
 - Vague test names: `"works correctly"`, `"handles errors"`
 - Flat test files with no `describe` grouping
 
