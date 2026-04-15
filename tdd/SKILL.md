@@ -12,15 +12,15 @@ flowchart TD
   C0["Cycle 0: Architecture Checkpoint"] --> RED
   RED["RED: happy-path tests (must fail)"] --> ORANGE
   ORANGE["ORANGE: error/edge-case tests (must fail)"] --> REVIEW
-  REVIEW{"REVIEW: agent + human audit"}
+  REVIEW{"🛑 REVIEW: HARD STOP\nagent presents test tree\nwaits for user approval"}
   REVIEW -->|gaps found| RED
-  REVIEW -->|approved| GREEN
+  REVIEW -->|user approves| GREEN
   GREEN["GREEN: minimal implementation (all pass)"] --> BLUE
   BLUE["BLUE: refactor, lint, full suite"] --> MODE
   MODE{"Completion mode?"}
   MODE -->|autonomous| COMMIT_NEXT["Commit + next RED"]
-  MODE -->|supervised| WAIT["Present summary, wait for approval"]
-  WAIT --> COMMIT_NEXT
+  MODE -->|supervised| STOP["🛑 HARD STOP\npresent summary\nwait for user approval"]
+  STOP -->|user approves| COMMIT_NEXT
 ```
 
 ## Cycle 0: Architecture Checkpoint
@@ -70,7 +70,7 @@ The agent and human jointly verify that the test suite fully specifies the featu
 
 **Step 4 -- Iterate.** If either side identifies missing tests, loop back to RED (happy-path gaps) or ORANGE (error/edge-case gaps). Write them, run to confirm failure, return to REVIEW.
 
-**Step 5 -- Gate.** Proceed to GREEN only when both agent and human agree the suite is complete. No logic gaps, no missing error paths, no unclear assumptions.
+**Step 5 -- Gate.** **HARD STOP. Do NOT proceed to GREEN.** After presenting the test tree and findings, you MUST stop and wait for the user's next message. Only proceed to GREEN when the user explicitly approves (e.g., "approved", "looks good", "continue", "go ahead"). Silence or lack of objection is NOT approval. If the user asks for changes, loop back to RED/ORANGE, then return to REVIEW and STOP again.
 
 ### GREEN -- Minimal Implementation
 
@@ -90,10 +90,10 @@ Refactor for clarity, DRYness, and readability. Then verify everything.
 
 After BLUE, the cycle completes in one of two modes:
 
-- **Supervised (default)**: Present a summary of what was implemented and tested. Wait for user approval before committing. Wait for "continue" before the next cycle.
-- **Autonomous**: Commit and immediately start the next cycle's RED phase. The user enables this by saying "continue autonomously" or "keep going."
+- **Supervised (default)**: Present a summary of what was implemented and tested. **HARD STOP. Do NOT commit, and do NOT start the next cycle.** Wait for the user's explicit approval before committing. After committing, wait for the user to say "continue" before starting the next cycle's RED phase. Two separate user messages are required: one to approve the commit, one to start the next cycle.
+- **Autonomous**: The user has explicitly said "continue autonomously" or "keep going". Only then may the agent commit and immediately start the next cycle's RED phase without pausing.
 
-The user can switch modes at any time. Ask which mode they prefer at the start of a multi-cycle session.
+The default is **supervised**. The user must explicitly opt into autonomous mode. The agent MUST ask which mode the user prefers at the start of a multi-cycle session if not already established. The user can switch modes at any time.
 
 **Commit messages** reference the cycle for traceability: `feat(scope): description [cycle N]`
 
@@ -141,16 +141,17 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 
 1. Never write implementation before RED tests exist
 2. Never skip ORANGE -- error paths catch more bugs than happy paths
-3. REVIEW is collaborative -- the agent actively audits for gaps, not just lists tests and waits
+3. **REVIEW is a HARD STOP** -- present findings and the test tree, then STOP. Do not proceed to GREEN until the user explicitly approves in a separate message
 4. REVIEW loops back to RED/ORANGE as many times as needed
 5. GREEN must be minimal -- no refactoring, no extras
 6. BLUE is for refactoring only -- no new behavior
 7. Run tests after every phase transition; run the FULL suite in BLUE
-8. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
-9. Architectural decisions belong in Cycle 0, not discovered mid-implementation
-10. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
-11. Test descriptions are specifications -- write them for someone who has never seen the code
-12. Commit messages reference the cycle: `feat(scope): description [cycle N]`
+8. **BLUE is a HARD STOP (supervised mode)** -- present results and STOP. Do not commit or start the next cycle until the user explicitly says to proceed
+9. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
+10. Architectural decisions belong in Cycle 0, not discovered mid-implementation
+11. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
+12. Test descriptions are specifications -- write them for someone who has never seen the code
+13. Commit messages reference the cycle: `feat(scope): description [cycle N]`
 
 ## Anti-Patterns
 
@@ -160,6 +161,8 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 - Refactoring in GREEN instead of waiting for BLUE
 - Making REVIEW a rubber stamp -- agent must actively audit
 - Skipping the REVIEW loop -- go back to RED/ORANGE, don't sneak tests into GREEN
+- **Presenting the REVIEW test tree and immediately proceeding to GREEN in the same turn** -- REVIEW requires a HARD STOP; the user must respond before GREEN begins
+- **Completing BLUE and immediately starting the next cycle's RED** -- in supervised mode, each cycle boundary requires user approval before continuing
 - Vague test names: `"works correctly"`, `"handles errors"`
 - Flat test files with no `describe` grouping
 
