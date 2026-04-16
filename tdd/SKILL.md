@@ -43,6 +43,7 @@ Write tests for the expected successful behavior. Call the function/method under
 - Tests MUST fail (function doesn't exist yet or returns wrong values)
 - Run tests to confirm failures
 - **If a test passes unexpectedly**: stop and investigate. Either the test is wrong, the feature already exists, or the assertion isn't testing what you think. Never treat unexpected passes as freebies.
+- **Tests must be implementable**: every test must be passable by a correct implementation. Before writing a test, mentally trace the implementation path and verify the test will pass when the code works correctly. A test that can never pass (e.g., asserting on unmocked externals, expecting a return value the API can't produce) is worse than no test.
 
 ### ORANGE -- Error and Edge-Case Tests
 
@@ -51,26 +52,69 @@ Write tests for bad input, missing dependencies, boundary values, and external f
 - Tests MUST fail
 - Run tests to confirm failures
 - Same rule: **unexpected passes must be investigated**
+- Same rule: **tests must be implementable** -- error-path tests that rely on unmocked dependencies throwing for the wrong reason (e.g., `TypeError: not a function` instead of the intended error message) are testing the mock setup, not the feature.
+
+### Mock Correctness
+
+When tests depend on mocked externals (HTTP calls, database, Solana RPC, etc.), follow these rules:
+
+1. **Mock at the right layer.** Mock the external boundary (e.g., `fetch`, `Connection.sendRawTransaction`), not internals of the unit under test. If the implementation deserializes a transaction before signing, the test must mock the deserialization too -- otherwise the test will fail for the wrong reason in GREEN.
+2. **Trace the call path before writing the test.** For each test, mentally walk through: "the implementation will call A, which calls B, which returns C." Ensure every external in that path is either mocked or will work with test data. If something in the chain is unmocked and will throw, the test is not implementable.
+3. **Assert the right thing.** If you mock `fetch` to return a canned response, assert on the parsed output of your method -- not on the raw mock. If you mock an RPC call to reject, assert the specific error message your implementation will wrap/propagate, not a generic `.toThrow()`.
+4. **Avoid coincidental passes.** A test that passes because a non-existent method throws `TypeError` is not testing your error handling. Use specific error message matchers (e.g., `.toThrow("No signing keypair configured")`) instead of bare `.toThrow()`.
+5. **Set up mocks before the call, not after.** Ensure mock state is configured in `beforeEach` or at the top of the test, before invoking the method under test. Mocks configured after the call do nothing.
 
 ### REVIEW -- Collaborative Quality Gate
 
 The agent and human jointly verify that the test suite fully specifies the feature before any implementation is written. This phase iterates until both sides are confident.
 
-**Step 1 -- Agent self-review.** Examine the full `describe`/`it` tree and ask:
+**Step 1 -- Cycle summary.** Start the REVIEW with a brief summary block:
+- **Cycle goal**: one sentence describing what this cycle delivers (e.g., "Core OrderExecutionService with keypair parsing, quote fetching, and swap submission")
+- **Files touched**: list of files created or modified in this cycle
+- **Test count**: N RED + M ORANGE = total
+
+**Step 2 -- Function signatures.** Print the signatures of all functions/methods that will be created or modified in GREEN as a **syntax-highlighted TypeScript code block**. Format for readability:
+
+- Use JSDoc-style comments to describe each function
+- Break long signatures across multiple lines (one param per line when > ~80 chars)
+- Indent continuation lines for parameters
+- Separate each function with a blank line
+
+```typescript
+// Example format:
+
+/** Return base58 pubkey of configured keypair. Throws if no keypair. */
+getWalletAddress(): string
+
+/** Fetch swap quote from the Phantom swapper API. */
+async getQuote(params: {
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string;
+  slippageBps?: number;
+}): Promise<SwapQuote>
+
+/** Get quote, sign transaction with local keypair, submit to RPC. */
+async executeSwap(
+  params: ExecuteSwapParams,
+): Promise<SwapExecutionResult>
+```
+
+**Step 3 -- Agent self-review.** Examine the full `describe`/`it` tree and ask:
 - Are there missing scenarios?
 - Logical gaps or contradictory assumptions?
 - Untested boundaries or error paths?
 - Does the test set fully specify the feature?
 
-**Step 2 -- Present findings.** Print the complete test description tree. Call out any gaps or concerns explicitly:
+**Step 4 -- Present findings.** Print the complete test description tree. Call out any gaps or concerns explicitly:
 - "I notice we don't test what happens when X is null."
 - "Should Y also handle the case where Z returns an empty array?"
 
-**Step 3 -- Human review.** The user inspects test descriptions, validates assumptions, and may request additions.
+**Step 5 -- Human review.** The user inspects test descriptions, validates assumptions, and may request additions.
 
-**Step 4 -- Iterate.** If either side identifies missing tests, loop back to RED (happy-path gaps) or ORANGE (error/edge-case gaps). Write them, run to confirm failure, return to REVIEW.
+**Step 6 -- Iterate.** If either side identifies missing tests, loop back to RED (happy-path gaps) or ORANGE (error/edge-case gaps). Write them, run to confirm failure, return to REVIEW.
 
-**Step 5 -- Gate.** **HARD STOP. Do NOT proceed to GREEN.** After presenting the test tree and findings, you MUST stop and wait for the user's next message. Only proceed to GREEN when the user explicitly approves (e.g., "approved", "looks good", "continue", "go ahead"). Silence or lack of objection is NOT approval. If the user asks for changes, loop back to RED/ORANGE, then return to REVIEW and STOP again.
+**Step 7 -- Gate.** **HARD STOP. Do NOT proceed to GREEN.** After presenting the test tree and findings, you MUST stop and wait for the user's next message. Only proceed to GREEN when the user explicitly approves (e.g., "approved", "looks good", "continue", "go ahead"). Silence or lack of objection is NOT approval. If the user asks for changes, loop back to RED/ORANGE, then return to REVIEW and STOP again.
 
 ### GREEN -- Minimal Implementation
 
@@ -153,6 +197,8 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 12. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
 13. Test descriptions are specifications -- write them for someone who has never seen the code
 14. Commit messages reference the cycle: `feat(scope): description [cycle N]`
+15. Every test must be implementable -- mentally trace the implementation before writing the test. If a correct implementation cannot make the test pass (missing mocks, wrong assertions, impossible return values), fix the test before moving on
+16. Mock at the external boundary and verify the full call chain is covered -- unmocked externals in the middle of the chain cause tests to fail for the wrong reason in GREEN
 
 ## Anti-Patterns
 
@@ -167,6 +213,9 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 - **Starting the next cycle's RED with uncommitted changes from the previous cycle** -- always commit before moving on; uncommitted work is invisible to future diffs and reviews
 - Vague test names: `"works correctly"`, `"handles errors"`
 - Flat test files with no `describe` grouping
+- **Writing tests that can't pass with a correct implementation** -- e.g., asserting on unmocked externals, expecting values the method can't return, or relying on `TypeError: not a function` as a substitute for real error handling
+- **Using bare `.toThrow()` when a specific error message is expected** -- coincidental passes from `TypeError` or mock setup errors hide real bugs
+- **Forgetting to mock intermediate externals in the call chain** -- if `executeSwap` calls `getQuote` which calls `fetch`, and then deserializes via `VersionedTransaction.deserialize`, all three layers need mocking for the `executeSwap` test to be implementable
 
 ## Example: One Full Cycle
 
@@ -195,6 +244,19 @@ Run tests -- all fail (function doesn't exist). Confirmed RED.
 Run tests -- all fail. Confirmed ORANGE.
 
 **REVIEW**
+
+**Cycle goal**: Pure discount calculator with input validation.
+**Files touched**: `src/pricing/discount.ts` (new), `src/pricing/__test__/discount.spec.ts` (new)
+**Test count**: 3 RED + 5 ORANGE = 8
+
+**Function signatures**:
+```typescript
+/** Apply percentage discount to price. Throws on negative inputs or percentage > 100. */
+calculateDiscount(
+  price: number,
+  percentage: number,
+): number
+```
 
 Agent prints the full tree and notes: "We don't test what happens when price is 0 -- should that return 0 or throw?" Human says: "Return 0, add a test." Loop back to RED, add `it("returns 0 when price is 0")`, confirm failure, return to REVIEW. Both satisfied -- proceed.
 
