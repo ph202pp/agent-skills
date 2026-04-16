@@ -9,30 +9,41 @@ Five-phase test-driven development cycle. Tests are written first, reviewed coll
 
 ```mermaid
 flowchart TD
-  C0["Cycle 0: Architecture Checkpoint"] --> RED
+  C0{"🛑 Cycle 0: HARD STOP\nArchitecture + Cycle Plan\nwait for user approval"} -->|user approves| RED
   RED["RED: happy-path tests (must fail)"] --> ORANGE
   ORANGE["ORANGE: error/edge-case tests (must fail)"] --> REVIEW
   REVIEW{"🛑 REVIEW: HARD STOP\nagent presents test tree\nwaits for user approval"}
   REVIEW -->|gaps found| RED
   REVIEW -->|user approves| GREEN
   GREEN["GREEN: minimal implementation (all pass)"] --> BLUE
-  BLUE["BLUE: refactor, lint, full suite"] --> MODE
+  BLUE["BLUE: refactor, lint, type check, full suite"] --> MODE
   MODE{"Completion mode?"}
   MODE -->|autonomous| COMMIT_NEXT["Commit + next RED"]
   MODE -->|supervised| STOP["🛑 HARD STOP\npresent summary\nwait for user approval"]
   STOP -->|user approves| COMMIT_NEXT
 ```
 
-## Cycle 0: Architecture Checkpoint
+## Cycle 0: Architecture Checkpoint — HARD STOP
 
-Before writing any tests, document key decisions that affect the entire feature:
+Cycle 0 runs once per feature, before any tests are written. Its purpose is to align on the overall goal, plan the work into cycles, and lock down architectural decisions so there are no costly mid-implementation surprises.
 
+**Step 1 — Overall goal.** State the feature's purpose in 1-2 sentences. What problem does it solve? What does "done" look like?
+
+**Step 2 — Cycle plan.** List all planned cycles as a numbered table. Each cycle gets:
+- A short name (e.g., "OrderExecutionService", "DCA integration", "TP/SL execution")
+- A one-sentence summary of what it delivers
+- Why it exists as a separate cycle (what dependency or scope boundary justifies the split)
+- How it connects to the other cycles (what it builds on, what it unblocks)
+
+The cycle plan gives both agent and human a shared map of the entire feature before any code is written. Cycles should be ordered by dependency — each cycle should only depend on cycles before it.
+
+**Step 3 — Architectural decisions.** Document key decisions that affect multiple cycles:
 - Data types and storage format (integers vs floats, string vs numeric, base units vs display units)
 - API contracts (request/response shapes, headers, status codes)
 - External dependencies (what gets mocked, what gets called)
 - Error strategy (exceptions vs result types, retry behavior)
 
-Cycle 0 runs once per feature, not per cycle. Its purpose is to prevent costly rework from late-stage architectural discoveries.
+**Step 4 — HARD STOP.** Present the goal, cycle plan, and architectural decisions. **Do NOT proceed to Cycle 1 RED.** Wait for the user to explicitly approve. The user may reorder cycles, add/remove cycles, or challenge architectural decisions. Iterate until both sides are satisfied.
 
 ## Phase Definitions
 
@@ -194,7 +205,7 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 8. **BLUE is a HARD STOP (supervised mode)** -- present results and STOP. Do not commit or start the next cycle until the user explicitly says to proceed
 9. **NEVER start the next cycle's RED before the current cycle is committed** -- uncommitted work must be committed first. No exceptions.
 10. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
-11. Architectural decisions belong in Cycle 0, not discovered mid-implementation
+11. **Cycle 0 is a HARD STOP** — present the goal, cycle plan, and architectural decisions, then STOP. Do not proceed to Cycle 1 RED until the user explicitly approves
 12. BLUE surfaces forward concerns as backlog, never scope-creeps the current cycle
 13. Test descriptions are specifications -- write them for someone who has never seen the code
 14. Commit messages reference the cycle: `feat(scope): description [cycle N]`
@@ -209,6 +220,7 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 - Refactoring in GREEN instead of waiting for BLUE
 - Making REVIEW a rubber stamp -- agent must actively audit
 - Skipping the REVIEW loop -- go back to RED/ORANGE, don't sneak tests into GREEN
+- **Presenting Cycle 0 and immediately starting RED** -- Cycle 0 requires a HARD STOP; the user must approve the cycle plan before any tests are written
 - **Presenting the REVIEW test tree and immediately proceeding to GREEN in the same turn** -- REVIEW requires a HARD STOP; the user must respond before GREEN begins
 - **Completing BLUE and immediately starting the next cycle's RED** -- in supervised mode, each cycle boundary requires user approval before continuing
 - **Starting the next cycle's RED with uncommitted changes from the previous cycle** -- always commit before moving on; uncommitted work is invisible to future diffs and reviews
