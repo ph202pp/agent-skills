@@ -128,6 +128,7 @@ Write the minimum code to make all RED + ORANGE tests pass.
 
 Refactor for clarity, DRYness, and readability. Then verify everything.
 
+- Run **type checking** (`tsc --noEmit` or equivalent) and fix any type errors
 - Run linter and fix any issues
 - Run the **full** test suite (all cycles, not just the current one) to catch cross-cycle regressions
 - **Surface forward concerns**: if the implementation reveals issues that belong in a future cycle, note them as backlog items. Do not scope-creep the current cycle (e.g., "this works but is not atomic -- consider a transaction cycle later")
@@ -189,7 +190,7 @@ Each cycle targets one unit of behavior: one service method, one validation rule
 4. REVIEW loops back to RED/ORANGE as many times as needed
 5. GREEN must be minimal -- no refactoring, no extras
 6. BLUE is for refactoring only -- no new behavior
-7. Run tests after every phase transition; run the FULL suite in BLUE
+7. Run tests after every phase transition; in BLUE run type checking, linter, and the FULL test suite
 8. **BLUE is a HARD STOP (supervised mode)** -- present results and STOP. Do not commit or start the next cycle until the user explicitly says to proceed
 9. **NEVER start the next cycle's RED before the current cycle is committed** -- uncommitted work must be committed first. No exceptions.
 10. Unexpected passes in RED/ORANGE are bugs in the test -- investigate
@@ -272,6 +273,6 @@ Run tests -- all pass. Confirmed GREEN.
 
 **BLUE**
 
-No refactoring needed for this simple function. Run linter -- clean. Run full suite -- no regressions. Note forward concern: "Floating point precision may need attention for financial use cases -- consider integer math in a future cycle."
+No refactoring needed for this simple function. Run `tsc --noEmit` -- clean. Run linter -- clean. Run full suite -- no regressions. Note forward concern: "Floating point precision may need attention for financial use cases -- consider integer math in a future cycle."
 
 Commit: `feat(pricing): add calculateDiscount with validation [cycle 1]`
